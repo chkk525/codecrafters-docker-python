@@ -1,20 +1,33 @@
+import os
 import subprocess
 import sys
+import shutil
+import tempfile
 
 # This is a starting point for Python solutions to the "Build Your Own Docker" Challenge.
 
 # In this challenge, you'll build a program that can pull an image from Docker Hub and execute commands in it.
 # Along the way, we'll learn about chroot, kernel namespaces, the docker registry API and much more.
 
+# Stage 4: Filesystem isolation
+# In the previous stage, we executed a program that existed locally on our machine.
+# This program had write access to the whole filesystem, which means that it could do dangerous things!
+# In this stage, you'll use chroot to ensure that the program you execute doesn't have access to
+# any files on the host machine.
+# Create an empty temporary directory and chroot into it when executing the command.
+# You'll need to copy the binary being executed too.
 
-# Stage 3: Handle exit codes
-# In this stage, you'll need to relay the program's exit code to the parent process.
-# If the program you're executing exits with exit code 1, your program should exit with exit code 1 too.
-# To test this behaviour locally, you could use the exit command that docker-explorer exposes. Run docker-explorer --help to view usage.
-# Just like the previous stage, the tester will run your program like this:
-# mydocker run ubuntu:latest /usr/local/bin/docker-explorer exit 1
 
 def main():
+    # Create a temp dir
+    temp_dir = tempfile.TemporaryDirectory()
+
+    # Change the root dir of the currrent process to the temp dir
+    os.chroot(temp_dir.name)
+
+    # Copy the binary that is being executed to the dir
+    shutil.copy(os.path.realpath(__file__), temp_dir.name)
+
     command = sys.argv[3]
     #  /usr/local/bin/docker-explorer
     args = sys.argv[4:]
