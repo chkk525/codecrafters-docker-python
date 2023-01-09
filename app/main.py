@@ -39,13 +39,15 @@ def main():
 
         # Run sub.py as a subprocess along with command and args
         p = subprocess.Popen(
-            [f"./{bin_name}", *args], start_new_session=True,
+            [f"./{bin_name}", *args],
+            start_new_session=True,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE)
 
         # Read the output from the pipes
         stdout, stderr = p.communicate()
-
+        if bin_name == 'mypid':
+            print(p.pid)
         # Wire stdout to sys.stdout/stderr to sys.stderr
         print(stdout.decode(
             "utf-8"), end='', file=sys.stdout)
@@ -54,6 +56,7 @@ def main():
 
         # Return exit code if it is not equal to zero.
         if p.returncode != 0:
+            # sys.exit(p.returncode)
             sys.exit(p.returncode)
 
 
