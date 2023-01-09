@@ -1,8 +1,8 @@
 import os
-import subprocess
-import sys
 import shutil
 import tempfile
+import sys
+import subprocess
 
 # This is a starting point for Python solutions to the "Build Your Own Docker" Challenge.
 
@@ -19,30 +19,38 @@ import tempfile
 
 
 def main():
-    # Create a temp dir
-    temp_dir = tempfile.TemporaryDirectory()
-
-    # Change the root dir of the currrent process to the temp dir
-    os.chroot(temp_dir.name)
-
-    # Copy the binary that is being executed to the dir
-    shutil.copy(os.path.realpath(__file__), temp_dir.name)
-
-    command = sys.argv[3]
-    #  /usr/local/bin/docker-explorer
+    # executable_file = '/usr/local/bin/docker-explorer'
+    executable_file = sys.argv[3]
     args = sys.argv[4:]
-    # ['exit', '29']
 
-    # Run a command as a subprocess, capturing its output, and then printing the output to the console.
-    completed_process = subprocess.run([command, *args], capture_output=True)
+    # Create a temp dir
+    with tempfile.TemporaryDirectory() as temp_dir:
+        # # Remove first root
+        components = executable_file.split(os.path.sep)
+        # bin_name = os.path.sep.join(components[1:])
+        bin_name = components[-1]
+        new_executable_file = os.path.join(temp_dir, bin_name)
 
-    # Wire stdout to sys.stdout/stderr to sys.stderr
-    print(completed_process.stdout.decode("utf-8"), end='', file=sys.stdout)
-    print(completed_process.stderr.decode("utf-8"), end='',  file=sys.stderr)
+        # Copy the executable binary to temp_dir.
+        shutil.copy(executable_file, new_executable_file)
 
-    # Return exit code if it is not equal to zero.
-    if completed_process.returncode != 0:
-        sys.exit(completed_process.returncode)
+        # Change the root dir and move to /.
+        os.chroot(temp_dir)
+        os.chdir('/')
+
+        # Run sub.py as a subprocess along with command and args
+        completed_process = subprocess.run(
+            [f"./{bin_name}", *args], capture_output=True)
+
+        # Wire stdout to sys.stdout/stderr to sys.stderr
+        print(completed_process.stdout.decode(
+            "utf-8"), end='', file=sys.stdout)
+        print(completed_process.stderr.decode(
+            "utf-8"), end='',  file=sys.stderr)
+
+        # Return exit code if it is not equal to zero.
+        if completed_process.returncode != 0:
+            sys.exit(completed_process.returncode)
 
 
 if __name__ == "__main__":
