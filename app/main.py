@@ -9,13 +9,12 @@ import subprocess
 # In this challenge, you'll build a program that can pull an image from Docker Hub and execute commands in it.
 # Along the way, we'll learn about chroot, kernel namespaces, the docker registry API and much more.
 
-# Stage 4: Filesystem isolation
-# In the previous stage, we executed a program that existed locally on our machine.
-# This program had write access to the whole filesystem, which means that it could do dangerous things!
-# In this stage, you'll use chroot to ensure that the program you execute doesn't have access to
-# any files on the host machine.
-# Create an empty temporary directory and chroot into it when executing the command.
-# You'll need to copy the binary being executed too.
+# Stage 5: Process isolation
+# In the previous stage, we guarded against malicious activity by restricting an executable's access to the filesystem.
+# There's another resource that needs to be guarded: the process tree.
+# The process you're executing is currently capable of viewing all other processes running on the host system, and sending signals to them.
+# In this stage, you'll use PID namespaces to ensure that the program you execute has its own isolated process tree.
+# The process being executed must see itself as PID 1.
 
 
 def main():
@@ -25,7 +24,7 @@ def main():
 
     # Create a temp dir
     with tempfile.TemporaryDirectory() as temp_dir:
-        # # Remove first root
+        # Remove first root
         components = executable_file.split(os.path.sep)
         # bin_name = os.path.sep.join(components[1:])
         bin_name = components[-1]
@@ -39,18 +38,23 @@ def main():
         os.chdir('/')
 
         # Run sub.py as a subprocess along with command and args
-        completed_process = subprocess.run(
-            [f"./{bin_name}", *args], capture_output=True)
+        p = subprocess.Popen(
+            [f"./{bin_name}", *args], start_new_session=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE)
+
+        # Read the output from the pipes
+        stdout, stderr = p.communicate()
 
         # Wire stdout to sys.stdout/stderr to sys.stderr
-        print(completed_process.stdout.decode(
+        print(stdout.decode(
             "utf-8"), end='', file=sys.stdout)
-        print(completed_process.stderr.decode(
+        print(stderr.decode(
             "utf-8"), end='',  file=sys.stderr)
 
         # Return exit code if it is not equal to zero.
-        if completed_process.returncode != 0:
-            sys.exit(completed_process.returncode)
+        if p.returncode != 0:
+            sys.exit(p.returncode)
 
 
 if __name__ == "__main__":
