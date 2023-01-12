@@ -1,64 +1,56 @@
+import ctypes
+import subprocess
 import os
 import shutil
-import tempfile
 import sys
-import subprocess
+import tempfile
 
-# This is a starting point for Python solutions to the "Build Your Own Docker" Challenge.
 
-# In this challenge, you'll build a program that can pull an image from Docker Hub and execute commands in it.
-# Along the way, we'll learn about chroot, kernel namespaces, the docker registry API and much more.
+def copy_file_to_dir(file_path, target_dir):
+    # Check if the provided file path is a valid file
+    if not os.path.isfile(file_path):
+        raise Exception('No executable found at the provided file path')
 
-# Stage 5: Process isolation
-# In the previous stage, we guarded against malicious activity by restricting an executable's access to the filesystem.
-# There's another resource that needs to be guarded: the process tree.
-# The process you're executing is currently capable of viewing all other processes running on the host system, and sending signals to them.
-# In this stage, you'll use PID namespaces to ensure that the program you execute has its own isolated process tree.
-# The process being executed must see itself as PID 1.
+    # Create the same directory structure in the target directory
+    path_in_dir = os.path.join(
+        target_dir,
+        os.path.dirname(file_path).strip('/')
+    )
+    os.makedirs(path_in_dir)
+
+    # Copy the file to the target directory
+    shutil.copy(file_path, os.path.join(
+        path_in_dir, os.path.basename(file_path)))
 
 
 def main():
-    # executable_file = '/usr/local/bin/docker-explorer'
-    executable_file = sys.argv[3]
-    args = sys.argv[4:]
+    # Get the command and its arguments from the command line
+    command, *args = sys.argv[3:]
 
-    # Create a temp dir
+    # Create a temporary directory
     with tempfile.TemporaryDirectory() as temp_dir:
-        # Remove first root
-        components = executable_file.split(os.path.sep)
-        # bin_name = os.path.sep.join(components[1:])
-        bin_name = components[-1]
-        new_executable_file = os.path.join(temp_dir, bin_name)
+        # Copy the executable file to the temporary directory
+        copy_file_to_dir(command, temp_dir)
 
-        # Copy the executable binary to temp_dir.
-        shutil.copy(executable_file, new_executable_file)
+        # Use ctypes library to call syscall to create a new process namespace
+        # defining the system call number of the unshare syscall.
+        unshare = 272
+        # flag that tells the unshare syscall to create a new PID namespace.
+        # equivalent to 536870912 in decimal.
+        clone_new_pid = 0x20000000
+        # loads the C library libc which is the standard C library that provides the system call interface on Linux systems.
+        libc = ctypes.CDLL(None)
+        libc.syscall(unshare, clone_new_pid)
 
-        # Change the root dir and move to /.
+        # Change the root directory to the temporary directory
         os.chroot(temp_dir)
-        os.chdir('/')
 
-        # Run sub.py as a subprocess along with command and args
-        p = subprocess.Popen(
-            [f"./{bin_name}", *args],
-            start_new_session=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE)
+        # Run the command in the new namespace
+        completed_process = subprocess.run([command, *args])
 
-        # Read the output from the pipes
-        stdout, stderr = p.communicate()
-        if bin_name == 'mypid':
-            print(p.pid)
-        # Wire stdout to sys.stdout/stderr to sys.stderr
-        print(stdout.decode(
-            "utf-8"), end='', file=sys.stdout)
-        print(stderr.decode(
-            "utf-8"), end='',  file=sys.stderr)
-
-        # Return exit code if it is not equal to zero.
-        if p.returncode != 0:
-            # sys.exit(p.returncode)
-            sys.exit(p.returncode)
+        # Exit the program with the return code of the command
+        sys.exit(completed_process.returncode)
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()
